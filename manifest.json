@@ -1,0 +1,11 @@
+{
+  "name": "smd_query",
+  "description": "Generic database access via SQL in Textpattern",
+  "version": "0.6.0",
+  "type": 0,
+  "author": "Stef Dawson",
+  "author_uri": "https://stefdawson.com/",
+  "order": 5,
+  "flags": 0,
+  "help": {"file" : ["./README.textile"]}
+}

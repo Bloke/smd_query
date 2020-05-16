@@ -1,0 +1,64 @@
+h1. Changelog
+
+h2. 0.6.0 - 2020-05-16
+
+* Use @article_format_info()@ and @link_format_info()@ internally (if available).
+* Add @var_prefix@.
+* Add @raw_vals@ for backwards compatibility but its use is discouraged.
+* Add @{smd_usedrow}@ to number only rows you use (thanks, aslsw66).
+* Add @<txp:smd_query_info />@ tag for those that prefer the security of a tag over {replacements}.
+* Improved security (thanks, Gocom).
+* Tag registration.
+
+h2. 0.5.0 - 2010-08-31
+
+* @form@ overrides container.
+* Container's else automatically works in @form@s.
+* Add @populate@ (thanks, atbradley).
+* Fixed PHP 4 compatibility and added @html_id@ and @breakclass@ (thanks, makss).
+* SHOW defaults to output mode.
+
+h2. 0.4.1 - 2010-01-17
+
+* Added @hashsize@, @mode@ and @{smd_query_unique_id}@.
+
+h2. 0.4.0 - 2009-12-05
+
+* Add @pagevar@, @{smd_prevpage}@, @{smd_nextpage}@, @{smd_rows_prev}@ and @{smd_rows_next}@.
+* Add @<txp:smd_query_if_prev>@ and @<txp:smd_query_if_next>@.
+* Remove @pgonly@ as paging can now _only_ be performed in the @pageform@.
+
+h2. 0.3.0 - 2009-12-02
+
+* Add unicode support and @strictfields@ to fix a few bugs (thanks, speeke).
+* Add direct pagination support.
+
+h2. 0.2.2 - 2009-10-16
+
+* Add @escape@ attribute (thanks, jakob).
+* Add @preparse@ attribute.
+
+h2. 0.2.1 - 2009-03-17
+
+* Add @$_SERVER@ var support.
+
+h2. 0.2.0 - 2008-11-23
+
+* Add @<txp:variable />@ support.
+* Enable URL variable support.
+* Add @urlfilter@, @urlreplace@, @delim@, @paramdelim@ and @defaults@ attributes.
+
+h2. 0.1.2 - 2008-07-14
+
+* Add @<txp:else>@ support in container (thanks, jakob).
+* Add @silent@ and @count@ attributes, and the replacement tags @{smd_rows} {smd_thisrow} {smd_thisindex}@.
+
+h2. 0.1.1 - 2008-05-23
+
+* Allow maths in queries - use html entities in Txp 4.0.6 (thanks, jm).
+* Fix WHERE clause to default to 1=1 if none supplied (thanks, jm).
+* Add more detailed file and link support.
+
+h2. 0.1.0 - 2008-05-22
+
+* Initial release

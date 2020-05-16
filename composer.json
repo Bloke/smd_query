@@ -1,0 +1,16 @@
+{
+  "name": "bloke/smd_query",
+  "description": "Generic database access via SQL in Textpattern",
+  "keywords": ["textpattern", "plugin", "query", "sql", "row", "iterate", "filter"],
+  "homepage": "https://github.com/bloke/smd_query",
+  "license": "GPL-2.0",
+  "type": "textpattern-plugin",
+  "support": {
+    "issues": "https://github.com/bloke/smd_query/issues",
+    "source": "https://github.com/bloke/smd_query"
+  },
+  "require": {
+    "textpattern/lock": ">=4.7.0",
+    "textpattern/installer": "*"
+  }
+}

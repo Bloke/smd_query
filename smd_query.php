@@ -82,12 +82,12 @@ if (!defined('txpinterface'))
  *  -> Results can be paged
  *
  * @author Stef Dawson
- * @link   http://stefdawson.com/
+ * @link   https://stefdawson.com/
+ * @todo   preparse=1 kills the ability to replace {tag} with
+ *         <txp:smd_query_info item="tag" /> because the act of parsing the
+ *         container with {tags} in it and then replacing them with real tags
+ *         doesn't execute the content: it needs a second parse() which is slower.
  */
-
-// TODO: preparse=1 kills the ability to replace {tag} with <txp:smd_query_info item="tag" />
-//    because the act of parsing the container with {tags} in it and then replacing them with
-//    real tags doesn't execute the content: it needs a second parse() which is slower
 if (class_exists('\Textpattern\Tag\Registry')) {
     Txp::get('\Textpattern\Tag\Registry')
         ->register('smd_query')
@@ -96,6 +96,13 @@ if (class_exists('\Textpattern\Tag\Registry')) {
         ->register('smd_if_next');
 }
 
+/**
+ * smd_query tag
+ *
+ * Perform a database query and return results in an iterable/parsable format.
+ * @param  array $atts   Tag attributes
+ * @param  string $thing Tag container content
+ */
 function smd_query($atts, $thing = null)
 {
     global $pretext, $smd_query_pginfo, $thispage, $thisarticle, $thisimage, $thisfile, $thislink, $smd_query_data;
@@ -137,27 +144,31 @@ function smd_query($atts, $thing = null)
         'debug'        => '0',
     ), $atts));
 
-    // Grab the form or embedded $thing
+    // Grab the form or embedded $thing.
     $falsePart = EvalElse($thing, 0);
 
     $thing = ($form) ? fetch_form($form) . (($falsePart) ? '<txp:else />' . $falsePart : '') : (($thing) ? $thing : '');
     $colsform = (empty($colsform)) ? '' : fetch_form($colsform);
     $pagebit = array();
+
     if ($pageform) {
         $pagePosAllowed = array("below", "above");
         $paging = 1;
         $pageform = fetch_form($pageform);
         $pagepos = str_replace('smd_', '', $pagepos);
         $pagepos = do_list($pagepos, $delim);
+
         foreach ($pagepos as $pageitem) {
             $pagebit[] = (in_array($pageitem, $pagePosAllowed)) ? $pageitem : $pagePosAllowed[0];
         }
     }
 
-    // Make a unique hash value for this instance so the queries can be paged independently
+    // Make a unique hash value for this instance so the queries
+    // can be paged independently.
     $uniq = '';
     $md5 = md5($column.$table.$where.$query.$defaults);
     list($hashLen, $hashSkip) = explode(':', $hashsize);
+
     for ($idx = 0, $cnt = 0; $cnt < $hashLen; $cnt++, $idx = (($idx+$hashSkip) % strlen($md5))) {
         $uniq .= $md5[$idx];
     }
@@ -165,16 +176,18 @@ function smd_query($atts, $thing = null)
     $pagevar = ($pagevar == 'SMD_QUERY_UNIQUE_ID') ? $uniq : $pagevar;
     $urlfilter = (!empty($urlfilter)) ? do_list($urlfilter, $delim) : '';
     $urlreplace = (!empty($urlreplace)) ? do_list($urlreplace, $delim) : '';
+
     if ($debug > 0) {
         echo "++ URL FILTERS ++";
         dmp($urlfilter);
         dmp($urlreplace);
     }
 
-    // Process any defaults
+    // Process any defaults.
     $spc = ($strictfields) ? 0 : 1;
     $defaults = do_list($defaults, $delim);
     $dflts = array();
+
     foreach ($defaults as $item) {
         $item = do_list($item, $paramdelim);
         if ($item[0] == '') continue;
@@ -188,8 +201,9 @@ function smd_query($atts, $thing = null)
         dmp($dflts);
     }
 
-    // Get a list of fields to escape
+    // Get a list of fields to escape.
     $escapes = do_list($escape, $delim);
+
     foreach ($escapes as $idx => $val) {
         if ($val == '') {
             unset($escapes[$idx]);
@@ -201,7 +215,7 @@ function smd_query($atts, $thing = null)
     $colout = $finalout = array();
     $pageout = '';
 
-    // query overrides column/table/where
+    // query overrides column/table/where.
     if ($query) {
         $query = smd_query_parse($query, $dflts, $urlfilter, $urlreplace, $spc);
         $mode = ($mode == 'auto') ? ((preg_match('/(select|show)/i', $query)) ? 'output' : 'input') : $mode;
@@ -241,7 +255,7 @@ function smd_query($atts, $thing = null)
                 $numPages = ceil($total/$limit);
                 $pg = (!gps($pagevar)) ? 1 : gps($pagevar);
                 $pgoffset = $offset + (($pg - 1) * $limit);
-                // send paging info to txp:newer and txp:older
+                // Send paging info to txp:newer and txp:older.
                 $pageout['pg'] = $pg;
                 $pageout['numPages'] = $numPages;
                 $pageout['s'] = $pretext['s'];
@@ -257,12 +271,12 @@ function smd_query($atts, $thing = null)
             $pagerows = count($rs);
 
             $replacements = $repagements = $colreplacements = array();
-            $page_rowcnt = ($count=="up") ? 0 : $pagerows-1;
-            $qry_rowcnt = ($count=="up") ? $pgoffset-$offset : $numrows-$pgoffset-1;
+            $page_rowcnt = ($count == "up") ? 0 : $pagerows-1;
+            $qry_rowcnt = ($count == "up") ? $pgoffset-$offset : $numrows-$pgoffset-1;
             $used_rowcnt = 1;
             $first_row = $qry_rowcnt + 1;
 
-            // Preserve any external context
+            // Preserve any external context.
             switch ($populate) {
                 case 'article':
                     $safe = ($thisarticle) ? $thisarticle : array();
@@ -280,26 +294,26 @@ function smd_query($atts, $thing = null)
 
             foreach ($rs as $row) {
                 foreach ($row as $colid => $val) {
-                    // Construct the replacement arrays and global data used by the smd_query_info tag
+                    // Construct the replacement arrays and global data used by the smd_query_info tag.
                     if ($page_rowcnt == 0 && $colsform) {
                         $colreplacements['{'.$colid.'}'] = ($raw_vals) ? $colid : '<txp:smd_query_info type="col" item="' . $colid. '" />';
                         $smd_query_data['col'][$colid] = $colid;
                     }
 
                     // Mitigate injection attacks by using an actual Txp tag instead of the raw value
-                    // Note the type is specified in case the default is ever altered
+                    // Note the type is specified in case the default is ever altered.
                     $escval = (in_array($colid, $escapes) ? htmlspecialchars($val, ENT_QUOTES) : $val);
                     $replacements['{'.$colid.'}'] = ($raw_vals) ? $escval : '<txp:smd_query_info type="field" item="' . $colid. '" />';
                     $smd_query_data['field'][$colid] = $escval;
 
-                    if ($page_rowcnt == (($count=="up") ? $pagerows-1 : 0) && $pageform && $limit>0) {
+                    if ($page_rowcnt == (($count == "up") ? $pagerows-1 : 0) && $pageform && $limit>0) {
                         $prevpg = (($pg-1) > 0) ? $pg-1 : '';
                         $nextpg = (($pg+1) <= $numPages) ? $pg+1 : '';
                         $rowprev = $prevpg ? $limit : 0;
                         $rownext = (($nextpg) ? ((($qry_rowcnt+$limit+1) > $total) ? $total-$qry_rowcnt-1 : $limit) : 0);
 
                         // These values are all generated by the plugin and are just numbers, so don't need the
-                        // extra protection of being output as real tags
+                        // extra protection of being output as real tags.
                         $repagements['{'.$var_prefix.'allrows}'] = $total;
                         $repagements['{'.$var_prefix.'pages}'] = $numPages;
                         $repagements['{'.$var_prefix.'prevpage}'] = $prevpg;
@@ -359,7 +373,7 @@ function smd_query($atts, $thing = null)
                         if (function_exists('article_format_info')) {
                             article_format_info($row);
                         } else {
-                            // TO REMOVE
+                            // TO REMOVE.
                             populateArticleData($row);
                         }
                         $thisarticle['is_first'] = ($page_rowcnt == 1);
@@ -375,7 +389,7 @@ function smd_query($atts, $thing = null)
                         if (function_exists('link_format_info')) {
                             $thislink = link_format_info($row);
                         } else {
-                            // TO REMOVE
+                            // TO REMOVE.
                             $thislink = array(
                                 'id'          => $row['id'],
                                 'linkname'    => $row['linkname'],
@@ -405,27 +419,30 @@ function smd_query($atts, $thing = null)
                 if ($colreplacements) {
                     $colout[] = ($preparse) ? parse(strtr(parse($colsform), $colreplacements)) : parse(strtr($colsform, $colreplacements));
                 }
+
                 if ($repagements) {
                     // Doesn't need an extra parse in the preparse phase because none of the replacements come
-                    // from outside the plugin so they are used {verbatim}
+                    // from outside the plugin so they are used {verbatim}.
                     $pageout = ($preparse) ? strtr(parse($pageform), $repagements) : parse(strtr($pageform, $repagements));
                 }
 
-                // Make up the final output
+                // Make up the final output.
                 if (in_array("above", $pagebit)) {
                     $finalout[] = $pageout;
                 }
+
                 $finalout[] = doLabel($label, $labeltag).doWrap(array_merge($colout, $out), $wraptag, $break, $class, $breakclass, '', '', $html_id);
+
                 if (in_array("below", $pagebit)) {
                     $finalout[] = $pageout;
                 }
 
-                // Restore the paging outside the plugin container
+                // Restore the paging outside the plugin container.
                 if ($limit > 0) {
                     $thispage = $safepage;
                 }
 
-                // Restore the other contexts
+                // Restore the other contexts.
                 if (isset($safe)) {
                     switch ($populate) {
                         case 'article':
@@ -442,6 +459,7 @@ function smd_query($atts, $thing = null)
                             break;
                     }
                 }
+
                 return join('', $finalout);
             }
         } else {
@@ -452,17 +470,24 @@ function smd_query($atts, $thing = null)
     return '';
 }
 
-// Returns a string with any ? variables replaced with their globals
-// URL variables are optionally run through preg_replace() to sanitize them.
-//  $pat is an array of regex search patterns
-//  $rep is an array of regex search repalcements (default = '', i.e. remove whatever matches)
+/**
+ * Internal function to parse replacement variables and globals
+ *
+ * URL variables are optionally run through preg_replace() to sanitize them.
+ *
+ * @param  string $item  The element to scan for replacements
+ * @param  array  $dflts Default values to apply if any replacements are empty
+ * @param  array  $pat   A set of regex search patterns
+ * @param  array  $rep   A set of regex search replacements (default='', remove whatever matches)
+ * @param  bool   $lax   Whether to allow spaces in pattern matches
+ */
 function smd_query_parse($item, $dflts = array(''), $pat = array(''), $rep = array(''), $lax = true)
 {
     global $pretext, $thisarticle, $thisimage, $thisfile, $thislink, $variable;
 
     $item = html_entity_decode($item);
 
-    // Sometimes pesky Unicode is not compiled in. Detect if so and fall back to ASCII
+    // Sometimes pesky Unicode is not compiled in. Detect if so and fall back to ASCII.
     if (!@preg_match('/\pL/u', 'a')) {
         $modRE = ($lax) ? '/(\?)([A-Za-z0-9_\- ]+)/' : '/(\?)([A-Za-z0-9_\-]+)/';
     } else {
@@ -479,12 +504,15 @@ function smd_query_parse($item, $dflts = array(''), $pat = array(''), $rep = arr
 
         if (gps($lowitem) != '') {
             $urlvar = doSlash(gps($lowitem));
+
             if ($urlvar && $pat) {
                 $urlvar = preg_replace($pat, $rep, $urlvar);
             }
         }
+
         if (serverSet($modItem) != '') {
             $svrvar = doSlash(serverSet($modItem));
+
             if ($svrvar && $pat) {
                 $svrvar = preg_replace($pat, $rep, $svrvar);
             }
@@ -492,21 +520,21 @@ function smd_query_parse($item, $dflts = array(''), $pat = array(''), $rep = arr
 
         if (isset($variable[$lowitem]) && $variable[$lowitem] != '') {
             $item = str_replace($modChar.$modItem, $variable[$lowitem], $item);
-        } else if ($svrvar != '') {
+        } elseif ($svrvar != '') {
             $item = str_replace($modChar.$modItem, $svrvar, $item);
-        } else if (isset($thisimage[$lowitem]) && !empty($thisimage[$lowitem])) {
+        } elseif (isset($thisimage[$lowitem]) && !empty($thisimage[$lowitem])) {
             $item = str_replace($modChar.$modItem, $thisimage[$lowitem], $item);
-        } else if (isset($thisfile[$lowitem]) && !empty($thisfile[$lowitem])) {
+        } elseif (isset($thisfile[$lowitem]) && !empty($thisfile[$lowitem])) {
             $item = str_replace($modChar.$modItem, $thisfile[$lowitem], $item);
-        } else if (isset($thislink[$lowitem]) && !empty($thislink[$lowitem])) {
+        } elseif (isset($thislink[$lowitem]) && !empty($thislink[$lowitem])) {
             $item = str_replace($modChar.$modItem, $thislink[$lowitem], $item);
-        } else if (array_key_exists($lowitem, $pretext) && !empty($pretext[$lowitem])) {
+        } elseif (array_key_exists($lowitem, $pretext) && !empty($pretext[$lowitem])) {
             $item = str_replace($modChar.$modItem, $pretext[$lowitem], $item);
-        } else if (isset($thisarticle[$lowitem]) && !empty($thisarticle[$lowitem])) {
+        } elseif (isset($thisarticle[$lowitem]) && !empty($thisarticle[$lowitem])) {
             $item = str_replace($modChar.$modItem, $thisarticle[$lowitem], $item);
-        } else if ($urlvar != '') {
+        } elseif ($urlvar != '') {
             $item = str_replace($modChar.$modItem, $urlvar, $item);
-        } else if (isset($dflts[$lowitem])) {
+        } elseif (isset($dflts[$lowitem])) {
             $item = str_replace($modChar.$modItem, $dflts[$lowitem], $item);
         } else {
             $item = str_replace($modChar.$modItem, $modItem, $item);
@@ -549,20 +577,37 @@ function smd_query_info($atts, $thing = null)
     return doWrap($out, $wraptag, $break, $class);
 }
 
-// Convenience tags to check if there's a prev/next page defined. Could also use smd_if
+/**
+ * Convenience tags to check if there's a previous page defined
+ *
+ * Could also use smd_if plugin.
+ *
+ * @param  array $atts   Tag attributes
+ * @param  string $thing Tag container content
+ */
 function smd_query_if_prev($atts, $thing)
 {
     global $smd_query_pginfo;
 
     $res = $smd_query_pginfo && $smd_query_pginfo['{smd_prevpage}'] != '';
+
     return parse(EvalElse(strtr($thing, $smd_query_pginfo), $res));
 }
 
+/**
+ * Convenience tags to check if there's a next page defined
+ *
+ * Could also use smd_if plugin.
+ *
+ * @param  array $atts   Tag attributes
+ * @param  string $thing Tag container content
+ */
 function smd_query_if_next($atts, $thing)
 {
     global $smd_query_pginfo;
 
     $res = $smd_query_pginfo && $smd_query_pginfo['{smd_nextpage}'] != '';
+
     return parse(EvalElse(strtr($thing, $smd_query_pginfo), $res));
 
 }

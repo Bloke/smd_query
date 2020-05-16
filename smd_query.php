@@ -17,7 +17,7 @@ $plugin['name'] = 'smd_query';
 // 1 = Plugin help is in raw HTML.  Not recommended.
 # $plugin['allow_html_help'] = 1;
 
-$plugin['version'] = '0.5.0';
+$plugin['version'] = '0.6.0';
 $plugin['author'] = 'Stef Dawson';
 $plugin['author_uri'] = 'https://stefdawson.com/';
 $plugin['description'] = 'Generic database access via SQL';
@@ -88,44 +88,46 @@ if (!defined('txpinterface'))
 // TODO: preparse=1 kills the ability to replace {tag} with <txp:smd_query_info item="tag" />
 //    because the act of parsing the container with {tags} in it and then replacing them with
 //    real tags doesn't execute the content: it needs a second parse() which is slower
-function smd_query($atts, $thing = '')
+function smd_query($atts, $thing = null)
 {
-    global $pretext, $smd_query_pginfo, $thispage, $thisarticle, $thisimage, $thisfile, $thislink;
+    global $pretext, $smd_query_pginfo, $thispage, $thisarticle, $thisimage, $thisfile, $thislink, $smd_query_data;
 
     extract(lAtts(array(
-        'column' => '',
-        'table' => '',
-        'where' => '',
-        'query' => '',
-        'form' => '',
-        'pageform' => '',
-        'pagevar' => 'pg',
-        'pagepos' => 'below',
-        'colsform' => '',
-        'escape' => '',
+        'column'       => '',
+        'table'        => '',
+        'where'        => '',
+        'query'        => '',
+        'form'         => '',
+        'pageform'     => '',
+        'pagevar'      => 'pg',
+        'pagepos'      => 'below',
+        'colsform'     => '',
+        'escape'       => '',
         'strictfields' => '0',
-        'preparse' => '0',
-        'populate' => '', // one of article, image, file, or link
-        'urlfilter' => '',
-        'urlreplace' => '',
-        'defaults' => '',
-        'delim' => ',',
-        'paramdelim' => ':',
-        'silent' => '0',
-        'mode' => 'auto', // auto chooses one of input (INSERT/UPDATE) or output (QUERY)
-        'count' => 'up',
-        'limit' => 0,
-        'offset' => 0,
-        'hashsize' => '6:5',
-        'label' => '',
-        'labeltag' => '',
-        'wraptag' => '',
-        'break' => '',
-        'class' => '',
-        'breakclass' => '',
-        'html_id' => '',
-        'debug' => '0',
-    ),$atts));
+        'preparse'     => '0', // 0 = {replace} then parse, 1 = parse then {replace}
+        'populate'     => '', // one of article, image, file, or link
+        'raw_vals'     => '0',
+        'urlfilter'    => '',
+        'urlreplace'   => '',
+        'defaults'     => '',
+        'delim'        => ',',
+        'paramdelim'   => ':',
+        'silent'       => '0',
+        'mode'         => 'auto', // auto chooses one of input (INSERT/UPDATE) or output (QUERY)
+        'count'        => 'up',
+        'var_prefix'   => 'smd_',
+        'limit'        => 0,
+        'offset'       => 0,
+        'hashsize'     => '6:5',
+        'label'        => '',
+        'labeltag'     => '',
+        'wraptag'      => '',
+        'break'        => '',
+        'class'        => '',
+        'breakclass'   => '',
+        'html_id'      => '',
+        'debug'        => '0',
+    ), $atts));
 
     // Grab the form or embedded $thing
     $falsePart = EvalElse($thing, 0);
@@ -202,7 +204,7 @@ function smd_query($atts, $thing = '')
         }
     } else {
         if ($column && $table) {
-            // TODO: Perhaps doSlash() these?
+            // TODO: Perhaps doSlash() these? Or strip_tags?
             $column = smd_query_parse($column, $dflts, $urlfilter, $urlreplace, $spc);
             $table = smd_query_parse($table, $dflts, $urlfilter, $urlreplace, $spc);
             $where = smd_query_parse($where, $dflts, $urlfilter, $urlreplace, $spc);
@@ -249,6 +251,7 @@ function smd_query($atts, $thing = '')
             $replacements = $repagements = $colreplacements = array();
             $page_rowcnt = ($count=="up") ? 0 : $pagerows-1;
             $qry_rowcnt = ($count=="up") ? $pgoffset-$offset : $numrows-$pgoffset-1;
+            $used_rowcnt = 1;
             $first_row = $qry_rowcnt + 1;
 
             // Preserve any external context
@@ -269,45 +272,88 @@ function smd_query($atts, $thing = '')
 
             foreach ($rs as $row) {
                 foreach ($row as $colid => $val) {
+                    // Construct the replacement arrays and global data used by the smd_query_info tag
                     if ($page_rowcnt == 0 && $colsform) {
-                        $colreplacements['{'.$colid.'}'] = $colid;
+                        $colreplacements['{'.$colid.'}'] = ($raw_vals) ? $colid : '<txp:smd_query_info type="col" item="' . $colid. '" />';
+                        $smd_query_data['col'][$colid] = $colid;
                     }
-                    // Construct the replacement arrays
-                    $replacements['{'.$colid.'}'] = (in_array($colid, $escapes) ? htmlspecialchars($val, ENT_QUOTES) : $val);
+
+                    // Mitigate injection attacks by using an actual Txp tag instead of the raw value
+                    // Note the type is specified in case the default is ever altered
+                    $escval = (in_array($colid, $escapes) ? htmlspecialchars($val, ENT_QUOTES) : $val);
+                    $replacements['{'.$colid.'}'] = ($raw_vals) ? $escval : '<txp:smd_query_info type="field" item="' . $colid. '" />';
+                    $smd_query_data['field'][$colid] = $escval;
+
                     if ($page_rowcnt == (($count=="up") ? $pagerows-1 : 0) && $pageform && $limit>0) {
                         $prevpg = (($pg-1) > 0) ? $pg-1 : '';
                         $nextpg = (($pg+1) <= $numPages) ? $pg+1 : '';
-                        $repagements['{smd_allrows}'] = $total;
-                        $repagements['{smd_pages}'] = $numPages;
-                        $repagements['{smd_prevpage}'] = $prevpg;
-                        $repagements['{smd_thispage}'] = $pg;
-                        $repagements['{smd_nextpage}'] = $nextpg;
-                        $repagements['{smd_row_start}'] = $first_row;
-                        $repagements['{smd_row_end}'] = $qry_rowcnt + 1;
-                        $repagements['{smd_rows_prev}'] = (($prevpg) ? $limit : 0);
-                        $repagements['{smd_rows_next}'] = (($nextpg) ? (($qry_rowcnt+$limit+1) > $total ? $total-$qry_rowcnt-1 : $limit) : 0);
-                        $repagements['{smd_query_unique_id}'] = $uniq;
+                        $rowprev = $prevpg ? $limit : 0;
+                        $rownext = (($nextpg) ? ((($qry_rowcnt+$limit+1) > $total) ? $total-$qry_rowcnt-1 : $limit) : 0);
+
+                        // These values are all generated by the plugin and are just numbers, so don't need the
+                        // extra protection of being output as real tags
+                        $repagements['{'.$var_prefix.'allrows}'] = $total;
+                        $repagements['{'.$var_prefix.'pages}'] = $numPages;
+                        $repagements['{'.$var_prefix.'prevpage}'] = $prevpg;
+                        $repagements['{'.$var_prefix.'thispage}'] = $pg;
+                        $repagements['{'.$var_prefix.'nextpage}'] = $nextpg;
+                        $repagements['{'.$var_prefix.'row_start}'] = $first_row;
+                        $repagements['{'.$var_prefix.'row_end}'] = $qry_rowcnt + 1;
+                        $repagements['{'.$var_prefix.'rows_prev}'] = $rowprev;
+                        $repagements['{'.$var_prefix.'rows_next}'] = $rownext;
+                        $repagements['{'.$var_prefix.'query_unique_id}'] = $uniq;
+
+                        $smd_query_data['page'][$var_prefix.'allrows'] = $total;
+                        $smd_query_data['page'][$var_prefix.'pages'] = $numPages;
+                        $smd_query_data['page'][$var_prefix.'prevpage'] = $prevpg;
+                        $smd_query_data['page'][$var_prefix.'thispage'] = $pg;
+                        $smd_query_data['page'][$var_prefix.'nextpage'] = $nextpg;
+                        $smd_query_data['page'][$var_prefix.'row_start'] = $first_row;
+                        $smd_query_data['page'][$var_prefix.'row_end'] = $qry_rowcnt + 1;
+                        $smd_query_data['page'][$var_prefix.'rows_prev'] = $rowprev;
+                        $smd_query_data['page'][$var_prefix.'rows_next'] = $rownext;
+                        $smd_query_data['page'][$var_prefix.'query_unique_id'] = $uniq;
                         $smd_query_pginfo = $repagements;
                     }
                 }
-                $replacements['{smd_allrows}'] = (($limit>0) ? $total : $numrows-$pgoffset);
-                $replacements['{smd_rows}'] = $pagerows;
-                $replacements['{smd_pages}'] = (($limit>0) ? $numPages : 1);
-                $replacements['{smd_thispage}'] = (($limit>0) ? $pg : 1);
-                $replacements['{smd_thisindex}'] = $page_rowcnt;
-                $replacements['{smd_thisrow}'] = $page_rowcnt + 1;
-                $replacements['{smd_cursorindex}'] = $qry_rowcnt;
-                $replacements['{smd_cursor}'] = $qry_rowcnt + 1;
+
+                $allrows = ($limit > 0) ? $total : $numrows-$pgoffset;
+                $pages = ($limit > 0) ? $numPages : 1;
+                $currpage = ($limit > 0) ? $pg : 1;
+                $replacements['{'.$var_prefix.'allrows}'] = $allrows;
+                $replacements['{'.$var_prefix.'rows}'] = $pagerows;
+                $replacements['{'.$var_prefix.'pages}'] = $pages;
+                $replacements['{'.$var_prefix.'thispage}'] = $currpage;
+                $replacements['{'.$var_prefix.'thisindex}'] = $page_rowcnt;
+                $replacements['{'.$var_prefix.'thisrow}'] = $page_rowcnt + 1;
+                $replacements['{'.$var_prefix.'cursorindex}'] = $qry_rowcnt;
+                $replacements['{'.$var_prefix.'cursor}'] = $qry_rowcnt + 1;
+                $replacements['{'.$var_prefix.'usedrow}'] = $used_rowcnt;
+
+                $smd_query_data['field'][$var_prefix.'allrows'] = $allrows;
+                $smd_query_data['field'][$var_prefix.'rows'] = $pagerows;
+                $smd_query_data['field'][$var_prefix.'pages'] = $pages;
+                $smd_query_data['field'][$var_prefix.'thispage'] = $currpage;
+                $smd_query_data['field'][$var_prefix.'thisindex'] = $page_rowcnt;
+                $smd_query_data['field'][$var_prefix.'thisrow'] = $page_rowcnt + 1;
+                $smd_query_data['field'][$var_prefix.'cursorindex'] = $qry_rowcnt;
+                $smd_query_data['field'][$var_prefix.'cursor'] = $qry_rowcnt + 1;
+                $smd_query_data['field'][$var_prefix.'usedrow'] = $used_rowcnt;
+
                 if ($debug > 0) {
                     echo "++ REPLACEMENTS ++";
                     dmp($replacements);
                 }
 
                 // Attempt to set up contexts to allow TXP tags to be used.
-                // This facility relies on the correct columns being pulled out by the query: caveat utilitor
                 switch ($populate) {
                     case 'article':
-                        populateArticleData($row);
+                        if (function_exists('article_format_info')) {
+                            article_format_info($row);
+                        } else {
+                            // TO REMOVE
+                            populateArticleData($row);
+                        }
                         $thisarticle['is_first'] = ($page_rowcnt == 1);
                         $thisarticle['is_last'] = (($page_rowcnt + 1) == $pagerows);
                         break;
@@ -318,28 +364,42 @@ function smd_query($atts, $thing = '')
                         $thisfile = file_download_format_info($row);
                         break;
                     case 'link':
-                        $thislink = array(
-                            'id'          => $row['id'],
-                            'linkname'    => $row['linkname'],
-                            'url'         => $row['url'],
-                            'description' => $row['description'],
-                            'date'        => $row['uDate'],
-                            'category'    => $row['category'],
-                            'author'      => $row['author'],
-                        );
+                        if (function_exists('link_format_info')) {
+                            $thislink = link_format_info($row);
+                        } else {
+                            // TO REMOVE
+                            $thislink = array(
+                                'id'          => $row['id'],
+                                'linkname'    => $row['linkname'],
+                                'url'         => $row['url'],
+                                'description' => $row['description'],
+                                'date'        => $row['uDate'],
+                                'category'    => $row['category'],
+                                'author'      => $row['author'],
+                            );
+                        }
                         break;
                 }
 
-                $out[] = ($preparse) ? strtr(parse($truePart), $replacements) : parse(strtr($truePart, $replacements));
+                $pp = ($preparse) ? strtr(parse($truePart), $replacements) : parse(strtr($truePart, $replacements));
+                $pp = trim(($raw_vals == '0') ? parse($pp) : $pp);
+
+                if ($pp) {
+                    $out[] = $pp;
+                    $used_rowcnt++;
+                }
+
                 $qry_rowcnt = ($count=="up") ? $qry_rowcnt+1 : $qry_rowcnt-1;
                 $page_rowcnt = ($count=="up") ? $page_rowcnt+1 : $page_rowcnt-1;
             }
 
             if ($out) {
                 if ($colreplacements) {
-                    $colout[] = ($preparse) ? strtr(parse($colsform), $colreplacements) : parse(strtr($colsform, $colreplacements));
+                    $colout[] = ($preparse) ? parse(strtr(parse($colsform), $colreplacements)) : parse(strtr($colsform, $colreplacements));
                 }
                 if ($repagements) {
+                    // Doesn't need an extra parse in the preparse phase because none of the replacements come
+                    // from outside the plugin so they are used {verbatim}
                     $pageout = ($preparse) ? strtr(parse($pageform), $repagements) : parse(strtr($pageform, $repagements));
                 }
 
@@ -380,14 +440,15 @@ function smd_query($atts, $thing = '')
             return parse(EvalElse($thing, 0));
         }
     }
+
     return '';
 }
 
 // Returns a string with any ? variables replaced with their globals
-// URL Variables are optionally run through preg_replace() to sanitize them.
+// URL variables are optionally run through preg_replace() to sanitize them.
 //  $pat is an array of regex search patterns
 //  $rep is an array of regex search repalcements (default = '', i.e. remove whatever matches)
-function smd_query_parse($item, $dflts=array(''), $pat=array(''), $rep=array(''), $lax=true)
+function smd_query_parse($item, $dflts = array(''), $pat = array(''), $rep = array(''), $lax = true)
 {
     global $pretext, $thisarticle, $thisimage, $thisfile, $thislink, $variable;
 
@@ -443,10 +504,44 @@ function smd_query_parse($item, $dflts=array(''), $pat=array(''), $rep=array('')
             $item = str_replace($modChar.$modItem, $modItem, $item);
         }
     }
+
     return $item;
 }
 
-// Convenience functions to check if there's a prev/next page defined. Could also use smd_if
+// Convenience tag for those that prefer the security of a tag over {replacements}
+function smd_query_info($atts, $thing = null)
+{
+    global $smd_query_data;
+
+    extract(lAtts(array(
+        'type'    => 'field', // or 'col' or 'page'
+        'item'    => '',
+        'wraptag' => '',
+        'break'   => '',
+        'class'   => '',
+        'debug'   => 0,
+    ), $atts));
+
+    $qdata = is_array($smd_query_data) ? $smd_query_data : array();
+
+    if ($debug) {
+        echo '++ AVAILABLE INFO ++';
+        dmp($qdata);
+    }
+
+    $items = do_list($item);
+    $out = array();
+
+    foreach ($items as $it) {
+        if (isset($qdata[$type][$it])) {
+            $out[] = $qdata[$type][$it];
+        }
+    }
+
+    return doWrap($out, $wraptag, $break, $class);
+}
+
+// Convenience tags to check if there's a prev/next page defined. Could also use smd_if
 function smd_query_if_prev($atts, $thing)
 {
     global $smd_query_pginfo;

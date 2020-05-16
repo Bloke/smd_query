@@ -88,6 +88,14 @@ if (!defined('txpinterface'))
 // TODO: preparse=1 kills the ability to replace {tag} with <txp:smd_query_info item="tag" />
 //    because the act of parsing the container with {tags} in it and then replacing them with
 //    real tags doesn't execute the content: it needs a second parse() which is slower
+if (class_exists('\Textpattern\Tag\Registry')) {
+    Txp::get('\Textpattern\Tag\Registry')
+        ->register('smd_query')
+        ->register('smd_query_info')
+        ->register('smd_if_prev')
+        ->register('smd_if_next');
+}
+
 function smd_query($atts, $thing = null)
 {
     global $pretext, $smd_query_pginfo, $thispage, $thisarticle, $thisimage, $thisfile, $thislink, $smd_query_data;

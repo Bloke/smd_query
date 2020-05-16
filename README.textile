@@ -47,10 +47,10 @@ h4. Advanced queries
 : You should not need to alter this parameter as it is set to automatically detect the query type.
 : If you are using SELECT or SHOW statements, the mode is set to @output@.
 : For any other type of query (e.g. INSERT/UPDATE) it is set to @input@.
-: The only difference between the two modes is that if it set to @input@ you can use smd_query as a self-closing tag because it does not use the form/container to parse the result set. Change this parameter only if the plugin detects the mode wrongly or you are doing something unorthodox with your query.
+: The only difference between the two modes is that if it's set to @input@ you can use smd_query as a self-closing tag because it does not use the form/container to parse the result set. Change this parameter only if the plugin detects the mode wrongly or you are doing something insanely clever with your query.
 : Default: @auto@.
 ; %populate%
-: You usually use @{replacement}@ variables in your smd_query container but if you are dealing with the native Textpattern content types (article, image, file, link) you can inform smd_query which of the four you are using via this attribute. You can then use Txp tags inside your form/container. See "example 13":#eg13.
+: You usually use @{replacement}@ variables or @<txp:smd_query_info />@ in your smd_query container to access  any fields you grab, but if you are dealing with the native Textpattern content types (article, image, file, link) you can inform smd_query which of the four you are using via this attribute. You can then use regular Txp tags inside your form/container. See "example 13":#eg13.
 
 h4. Forms and paging
 
@@ -127,16 +127,19 @@ h4. Plugin customisation
 : Default: @:@ (colon)
 ; %hashsize%
 : (should not be needed) The plugin assigns a 32-character, unique reference to the current smd_query based on your query attributes. @hashsize@ governs the mechanism for making this long reference shorter.
-: It comprises two numbers separated by a colon; the first is the length of the uniqe ID, the second is how many characters to skip past each time a character is chosen. For example, if the unique_reference was @0cf285879bf9d6b812539eb748fbc8f6@ then @hashsize="6:5"@ would make a 6-character unique ID using every 5th character; in other words @05f898@.
+: It comprises two numbers separated by a colon; the first is the length of the unique ID, the second is how many characters to skip past each time a character is chosen. For example, if the unique_reference was @0cf285879bf9d6b812539eb748fbc8f6@ then @hashsize="6:5"@ would make a 6-character unique ID using every 5th character; in other words @05f898@.
 : If at any time, you "fall off" the end of the long string, the plugin wraps back to the beginning of the string and continues counting.
 : Default: @6:5@.
 ; %silent% : if your query contains an error (wrong column name or some malformed input), the plugin will issue a Txp or SQL error message. Using @silent="1"@ will attempt to hide this error message.
 ; %var_prefix%
-; The prefix to use for the page and counting {replacement} variables.
+: The prefix to use for the page and counting {replacement} variables.
 : Default: @smd_@.
 ; %count%
 : Can be either "up" or "down" to alter the order the plugin counts row numbers. See "{smd_thisrow}":#replacements.
 : Default: @up@.
+; %raw_vals%
+: Whether to expose raw values or processed values to the replacement/container tags.
+: Default: 0 (use sanitized values where possible)
 ; %debug%
 : Set to 1 to show some debug output; use 2 to show a bit more detail.
 

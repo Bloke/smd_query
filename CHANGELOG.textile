@@ -7,7 +7,7 @@ h2. 0.6.0 - 2020-05-16
 * Add @raw_vals@ for backwards compatibility but its use is discouraged.
 * Add @{smd_usedrow}@ to number only rows you use (thanks, aslsw66).
 * Add @<txp:smd_query_info />@ tag for those that prefer the security of a tag over {replacements}.
-* Improved security (thanks, Gocom).
+* Improve security (thanks, Gocom).
 * Tag registration.
 
 h2. 0.5.0 - 2010-08-31

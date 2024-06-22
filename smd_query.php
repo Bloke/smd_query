@@ -213,7 +213,7 @@ function smd_query($atts, $thing = null)
     $rs = array();
     $out = array();
     $colout = $finalout = array();
-    $pageout = '';
+    $pageout = array();
 
     // query overrides column/table/where.
     if ($query) {

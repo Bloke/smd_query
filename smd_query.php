@@ -239,7 +239,7 @@ function smd_query($atts, $thing = null)
     }
 
     if ($mode == 'output') {
-        $numrows = count($rs);
+        $numrows = (!$rs ? 0 : count($rs));
         $truePart = EvalElse($thing, 1);
 
         if ($rs) {
